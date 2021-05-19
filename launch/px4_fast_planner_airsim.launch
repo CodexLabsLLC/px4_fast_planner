@@ -35,8 +35,6 @@
     <!-- Launching AirSim-->
     <include file="$(find airsim_ros_pkgs)/launch/airsim_node.launch"/>
     
-
-
     <!-- MAVROS + PX4 -->
     <include file="$(find px4_fast_planner)/launch/mavros_airsim.launch" >
         <arg name="use_gazebo" value="$(arg use_gazebo)"/>
