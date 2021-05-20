@@ -44,7 +44,7 @@ cmd:
 
 # global_position
 global_position:
-  frame_id: "world_enu"             # origin frame
+  frame_id: "world"             # origin frame
   child_frame_id: "PX4" # body-fixed frame
   rot_covariance: 99999.0   # covariance for attitude?
   gps_uere: 1.0             # User Equivalent Range Error (UERE) of GPS sensor (m)
@@ -66,10 +66,10 @@ imu:
 
 # local_position
 local_position:
-  frame_id: "world_enu"
+  frame_id: "world"
   tf:
     send: false
-    frame_id: "world_enu"
+    frame_id: "world"
     child_frame_id: "PX4"
     send_fcu: false
 
@@ -190,7 +190,7 @@ mocap:
 # odom
 odometry:
   fcu:
-    odom_parent_id_des: "world_enu"    # desired parent frame rotation of the FCU's odometry
+    odom_parent_id_des: "world"    # desired parent frame rotation of the FCU's odometry
     odom_child_id_des: "PX4"    # desired child frame rotation of the FCU's odometry
 
 # px4flow
