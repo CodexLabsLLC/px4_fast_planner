@@ -10,7 +10,7 @@ import rospy
 #from trajectory_msgs.msg import MultiDOFJointTrajectory, MultiDOFJointTrajectoryPoint # for geometric_controller
 from mavros_msgs.msg import PositionTarget #for MAVROS
 from quadrotor_msgs.msg import PositionCommand # for Fast-Planner
-from geometry_msgs.msg import Transform, Twist, Accel
+from geometry_msgs.msg import Transform, Twist, Accel, PoseStamped
 from nav_msgs.msg import Odometry
 
 
@@ -23,14 +23,14 @@ class MessageConverter:
 
         traj_pub_topic = rospy.get_param('~traj_pub_topic', '/mavros/setpoint_raw/local')
         odom_topic = rospy.get_param('~odom_topic', '/airsim_node/PX4/odom_local_enu')
+        trigger_topic = rospy.get_param('~trigger_topic', '/traj_start_trigger')
         # Publisher 
         self.traj_pub = rospy.Publisher(traj_pub_topic, PositionTarget, queue_size=10)
-        self.odom = None
-        self.has_odom = False
-        self.publish = False
+        self.exploration_triggered = False
         # Subscriber for Fast-Planner reference trajectory
         rospy.Subscriber(fast_planner_traj_topic, PositionCommand, self.fastPlannerTrajCallback, tcp_nodelay=True)
         rospy.Subscriber(odom_topic, Odometry, self.odomCallback, tcp_nodelay=True)
+        rospy.Subscriber(trigger_topic, PoseStamped, self.triggerCallback, tcp_nodelay=True)
         rospy.spin()
 
     def rawmsg(self, x, y, z, vx, vy, vz, ax, ay, az, yaw, yaw_dot):
@@ -54,7 +54,7 @@ class MessageConverter:
         raw_msg.acceleration_or_force.x = ax
         raw_msg.acceleration_or_force.y = ay
         raw_msg.acceleration_or_force.z = az
-        raw_msg.yaw = yaw
+        raw_msg.yaw = -yaw
         raw_msg.yaw_rate = yaw_dot
         return raw_msg
 
@@ -86,17 +86,18 @@ class MessageConverter:
         return raw_msg
 
     def odomCallback(self, msg):
-        if self.no_trajectory:
+        if not self.exploration_triggered:
             raw_msg = self.blank_msg(msg)
             self.traj_pub.publish(raw_msg)
 
     def fastPlannerTrajCallback(self, msg):
-        self.no_trajectory = False
         raw_msg = self.rawmsg(msg.position.x, msg.position.y, msg.position.z,
         msg.velocity.x, msg.velocity.y, msg.velocity.z, msg.acceleration.x, msg.acceleration.y, msg.acceleration.z,
         msg.yaw, msg.yaw_dot)
         self.traj_pub.publish(raw_msg)
-        self.no_trajectory = True
+    
+    def triggerCallback(self, msg):
+        self.exploration_triggered = True
 
 if __name__ == '__main__':
     obj = MessageConverter()
