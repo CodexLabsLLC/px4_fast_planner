@@ -50,15 +50,12 @@ class MessageConverter:
         raw_msg.velocity.x = vx
         raw_msg.velocity.y = vy
         raw_msg.velocity.z = vz
-        raw_msg.velocity.y = vy
         raw_msg.acceleration_or_force.x = ax
         raw_msg.acceleration_or_force.y = ay
         raw_msg.acceleration_or_force.z = az
         raw_msg.yaw = -yaw
-        raw_msg.yaw_rate = yaw_dot
+        raw_msg.yaw_rate = 0
         return raw_msg
-
-
 
     def blank_msg(self, odom):
         raw_msg = PositionTarget()
