@@ -53,7 +53,7 @@ class MessageConverter:
         raw_msg.acceleration_or_force.x = ax
         raw_msg.acceleration_or_force.y = ay
         raw_msg.acceleration_or_force.z = az
-        raw_msg.yaw = -yaw
+        raw_msg.yaw = yaw
         raw_msg.yaw_rate = 0
         return raw_msg
 
