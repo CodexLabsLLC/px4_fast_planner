@@ -12,6 +12,7 @@ from mavros_msgs.msg import PositionTarget #for MAVROS
 from quadrotor_msgs.msg import PositionCommand # for Fast-Planner
 from geometry_msgs.msg import Transform, Twist, Accel, PoseStamped
 from nav_msgs.msg import Odometry
+import time
 
 
 class MessageConverter:
@@ -20,18 +21,25 @@ class MessageConverter:
         rospy.init_node('trajectory_msg_converter')
 
         fast_planner_traj_topic = rospy.get_param('~fast_planner_traj_topic', 'planning/pos_cmd')
-
         traj_pub_topic = rospy.get_param('~traj_pub_topic', '/mavros/setpoint_raw/local')
         odom_topic = rospy.get_param('~odom_topic', '/airsim_node/PX4/odom_local_enu')
         trigger_topic = rospy.get_param('~trigger_topic', '/traj_start_trigger')
         # Publisher 
         self.traj_pub = rospy.Publisher(traj_pub_topic, PositionTarget, queue_size=10)
         self.exploration_triggered = False
-        # Subscriber for Fast-Planner reference trajectory
+        
+        #if the drone is not in exploration mode, send blank message 
+        # to keep offboard mode
+
+        
+    
+    def executeMission(self):
+        rospy.loginfo("Fast planner trajectory initialization complete")
         rospy.Subscriber(fast_planner_traj_topic, PositionCommand, self.fastPlannerTrajCallback, tcp_nodelay=True)
         rospy.Subscriber(odom_topic, Odometry, self.odomCallback, tcp_nodelay=True)
         rospy.Subscriber(trigger_topic, PoseStamped, self.triggerCallback, tcp_nodelay=True)
         rospy.spin()
+              
 
     def rawmsg(self, x, y, z, vx, vy, vz, ax, ay, az, yaw, yaw_dot):
         raw_msg = PositionTarget()
@@ -82,6 +90,43 @@ class MessageConverter:
         raw_msg.yaw_rate = 0
         return raw_msg
 
+    #sends a box to mavros/setpoint/local to get the imu ready for VINS
+    def odomInitTrajMsg(self):
+        t_end = time.time() + 60 * 0.1
+        while time.time() < t_end:
+          raw_msg = self.rawmsg(0,0,0.61,0,0,0.5,0,0,0.1,0,0)
+          rospy.loginfo("Publishing first point")
+          self.traj_pub.publish(raw_msg)
+        rospy.sleep(0.1)
+        
+        t_end = time.time() + 60 * 0.1
+        while time.time() < t_end:
+          raw_msg = self.rawmsg(1,0,0.61,0.5,0,0,0.1,0,0,0.5,0.0)
+          rospy.loginfo("Publishing second point")
+          self.traj_pub.publish(raw_msg)
+        rospy.sleep(0.1)
+
+        t_end = time.time() + 60 * 0.1
+        while time.time() < t_end:
+          raw_msg = self.rawmsg(1,1,0.61,0,0.5,0,0,0.1,0,0.5,0.0)
+          rospy.loginfo("Publishing third point")
+          self.traj_pub.publish(raw_msg)
+        rospy.sleep(0.1)
+
+        t_end = time.time() + 60 * 0.1
+        while time.time() < t_end:
+          raw_msg = self.rawmsg(0,1,0.61,-0.50,0,0,-0.1,0,0,0.5,0.0)
+          rospy.loginfo("Publishing fourth point")
+          self.traj_pub.publish(raw_msg)
+        rospy.sleep(0.1)
+
+        t_end = time.time() + 60 * 0.1
+        while time.time() < t_end:
+          raw_msg = self.rawmsg(0,0,0.61,0,-0.50,0,0.0,-0.1,0,0.5,0.0)
+          rospy.loginfo("Publishing fifth point")
+          self.traj_pub.publish(raw_msg)
+        rospy.sleep(0.1)
+
     def odomCallback(self, msg):
         if not self.exploration_triggered:
             raw_msg = self.blank_msg(msg)
@@ -96,8 +141,29 @@ class MessageConverter:
     def triggerCallback(self, msg):
         self.exploration_triggered = True
 
+    def flyTraj(self):
+        #Timer to ensure that commander is armed and in offboard mode before sending setpoints
+        x  = 60
+        while(x >= 0):
+            rospy.loginfo("Please wait %d seconds before arming the drone" % x)
+            rospy.sleep(1)
+            x = x - 1
+        
+        #Drone flies box pattern to get imu setup
+        t_end = time.time() + 60 * 1.5
+        while time.time() < t_end:
+           rospy.loginfo("Entered while loop to run odom conversion")
+           self.odomInitTrajMsg()
+        
+
 if __name__ == '__main__':
+    rospy.loginfo("Preparing to run the message converter")
     obj = MessageConverter()
+    obj.flyTraj()
+    obj.executeMission()
+    rospy.loginfo("Program end")
+    
+    
 
     
   
