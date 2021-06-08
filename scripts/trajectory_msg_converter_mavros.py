@@ -23,12 +23,8 @@ class MessageConverter:
         odom_topic = rospy.get_param('~odom_topic', '/airsim_node/PX4/odom_local_enu')
         trigger_topic = rospy.get_param('~trigger_topic', '/traj_start_trigger')
         # Publisher 
-        self.traj_pub = rospy.Publisher(self.traj_pub_topic, PositionTarget, queue_size=10)
+        self.traj_pub = rospy.Publisher(traj_pub_topic, PositionTarget, queue_size=10)
         self.exploration_triggered = False
-        fast_traj = fast_planner_traj_topic
-        traj_pub_2 = traj_pub_topic
-        odom_topic_2 = odom_topic
-        trig_topic_2 = trigger_topic
         #if the drone is not in exploration mode, send blank message 
         # to keep offboard mode
 
