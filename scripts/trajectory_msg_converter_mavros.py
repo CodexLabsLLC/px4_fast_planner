@@ -20,12 +20,12 @@ class MessageConverter:
     def __init__(self):
         rospy.init_node('trajectory_msg_converter')
 
-        fast_planner_traj_topic = rospy.get_param('~fast_planner_traj_topic', 'planning/pos_cmd')
-        traj_pub_topic = rospy.get_param('~traj_pub_topic', '/mavros/setpoint_raw/local')
-        odom_topic = rospy.get_param('~odom_topic', '/airsim_node/PX4/odom_local_enu')
-        trigger_topic = rospy.get_param('~trigger_topic', '/traj_start_trigger')
+        self.fast_planner_traj_topic = rospy.get_param('~fast_planner_traj_topic', 'planning/pos_cmd')
+        self.traj_pub_topic = rospy.get_param('~traj_pub_topic', '/mavros/setpoint_raw/local')
+        self.odom_topic = rospy.get_param('~odom_topic', '/airsim_node/PX4/odom_local_enu')
+        self.trigger_topic = rospy.get_param('~trigger_topic', '/traj_start_trigger')
         # Publisher 
-        self.traj_pub = rospy.Publisher(traj_pub_topic, PositionTarget, queue_size=10)
+        self.traj_pub = rospy.Publisher(self.traj_pub_topic, PositionTarget, queue_size=10)
         self.exploration_triggered = False
         
         #if the drone is not in exploration mode, send blank message 
@@ -35,9 +35,9 @@ class MessageConverter:
     
     def executeMission(self):
         rospy.loginfo("Fast planner trajectory initialization complete")
-        rospy.Subscriber(fast_planner_traj_topic, PositionCommand, self.fastPlannerTrajCallback, tcp_nodelay=True)
-        rospy.Subscriber(odom_topic, Odometry, self.odomCallback, tcp_nodelay=True)
-        rospy.Subscriber(trigger_topic, PoseStamped, self.triggerCallback, tcp_nodelay=True)
+        rospy.Subscriber(self.fast_planner_traj_topic, PositionCommand, self.fastPlannerTrajCallback, tcp_nodelay=True)
+        rospy.Subscriber(self.odom_topic, Odometry, self.odomCallback, tcp_nodelay=True)
+        rospy.Subscriber(self.trigger_topic, PoseStamped, self.triggerCallback, tcp_nodelay=True)
         rospy.spin()
               
 
