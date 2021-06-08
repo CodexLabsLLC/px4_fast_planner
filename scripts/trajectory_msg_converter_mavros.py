@@ -1,33 +1,34 @@
 #!/usr/bin/env python
 
-"""@trajectory_msg_converter_mavros.py
-This node converts Fast-Planner reference trajectory message to  Position Target Message which is accepted by MAVROS
-Authors: Arpit Amin, Codex Labs
-"""
-
 # Imports
 import rospy
 #from trajectory_msgs.msg import MultiDOFJointTrajectory, MultiDOFJointTrajectoryPoint # for geometric_controller
 from mavros_msgs.msg import PositionTarget #for MAVROS
 from quadrotor_msgs.msg import PositionCommand # for Fast-Planner
 from geometry_msgs.msg import Transform, Twist, Accel, PoseStamped
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 import time
-
+from mavros_msgs.srv import *
+import actionlib
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseFeedback, MoveBaseResult
+# from mavros_test_common import MavrosTestCommon
 
 class MessageConverter:
-
     def __init__(self):
         rospy.init_node('trajectory_msg_converter')
-
         fast_planner_traj_topic = rospy.get_param('~fast_planner_traj_topic', 'planning/pos_cmd')
+        global fast_planner_traj_topic_2 
+        fast_planner_traj_topic_2 = fast_planner_traj_topic
         traj_pub_topic = rospy.get_param('~traj_pub_topic', '/mavros/setpoint_raw/local')
         odom_topic = rospy.get_param('~odom_topic', '/airsim_node/PX4/odom_local_enu')
         trigger_topic = rospy.get_param('~trigger_topic', '/traj_start_trigger')
         # Publisher 
         self.traj_pub = rospy.Publisher(traj_pub_topic, PositionTarget, queue_size=10)
         self.exploration_triggered = False
-        
+        fast_traj = fast_planner_traj_topic
+        traj_pub_2 = traj_pub_topic
+        odom_topic_2 = odom_topic
+        trig_topic_2 = trigger_topic
         #if the drone is not in exploration mode, send blank message 
         # to keep offboard mode
 
@@ -35,9 +36,9 @@ class MessageConverter:
     
     def executeMission(self):
         rospy.loginfo("Fast planner trajectory initialization complete")
-        rospy.Subscriber(fast_planner_traj_topic, PositionCommand, self.fastPlannerTrajCallback, tcp_nodelay=True)
-        rospy.Subscriber(odom_topic, Odometry, self.odomCallback, tcp_nodelay=True)
-        rospy.Subscriber(trigger_topic, PoseStamped, self.triggerCallback, tcp_nodelay=True)
+        rospy.Subscriber(fast_planner_traj_topic_2, PositionCommand, self.fastPlannerTrajCallback, tcp_nodelay=True)
+        """ rospy.Subscriber(odom_topic_2, Odometry, self.odomCallback, tcp_nodelay=True)
+        rospy.Subscriber(trig_topic_2, PoseStamped, self.triggerCallback, tcp_nodelay=True) """
         rospy.spin()
               
 
@@ -126,6 +127,7 @@ class MessageConverter:
           rospy.loginfo("Publishing fifth point")
           self.traj_pub.publish(raw_msg)
         rospy.sleep(0.1)
+        
 
     def odomCallback(self, msg):
         if not self.exploration_triggered:
@@ -140,27 +142,105 @@ class MessageConverter:
     
     def triggerCallback(self, msg):
         self.exploration_triggered = True
+    
+    
 
     def flyTraj(self):
         #Timer to ensure that commander is armed and in offboard mode before sending setpoints
-        x  = 60
-        while(x >= 0):
-            rospy.loginfo("Please wait %d seconds before arming the drone" % x)
-            rospy.sleep(1)
-            x = x - 1
-        
+        # x  = 60
+        # while(x >= 0):
+        #     rospy.loginfo("Please wait %d seconds before arming the drone" % x)
+        #     rospy.sleep(1)
+        #     x = x - 1
         #Drone flies box pattern to get imu setup
+        
+        x = 10
+        while x >= 0:
+          rospy.sleep(1)
+          rospy.loginfo("takeoff mode set, time to start %d" % x)
+          x = x - 1
         t_end = time.time() + 60 * 1.5
-        while time.time() < t_end:
+        while time.time() < t_end:  
+           """ if(time.time() + 10 > t_end):
+               rospy.loginfo("Attemptiing to start FUEL")
+               obj.executeMission()  """
            rospy.loginfo("Entered while loop to run odom conversion")
            self.odomInitTrajMsg()
+
+    def setTakeoff(self):
+       rospy.wait_for_service('mavros/cmd/takeoff')
+       try:
+          takeoffService = rospy.ServiceProxy(
+            '/mavros/cmd/takeoff', mavros_msgs.srv.CommandTOL)
+          takeoffService(altitude=0.61, latitude=47.641468,
+                       longitude=-122.140165, min_pitch=0, yaw=1.0)
+          rospy.loginfo("Taking off to 0.61 m")
+       except rospy.ServiceException as e: 
+          print ("Service takeoff call failed: %s" %e)
+    
+    def setLoiterMode(self):
+       rospy.wait_for_service('/mavros/set_mode')
+       try:
+          flightModeService = rospy.ServiceProxy('/mavros/set_mode', mavros_msgs.srv.SetMode)
+          isModeChanged = flightModeService(custom_mode='AUTO.LOITER')  # return true or false
+       except rospy.ServiceException as e:
+          print("service set_mode call failed: %s. AUTO.LOITER Mode could not be set")
+        
+    def sendNavGoal(self):
+        client = actionlib.SimpleActionClient('/traj_start_trigger', MoveBaseAction)
+        rospy.loginfo("Waiting for move base server")
+        rospy.loginfo(client)
+        #client.wait_for_server()
+        rospy.loginfo("Server setup is successful")
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = 'world' 
+        goal.target_pose.pose.position.x = 5.0
+        goal.target_pose.pose.position.y = -5.0
+        goal.target_pose.pose.position.z = 0.61
+        goal.target_pose.pose.orientation.z = 0.727
+        goal.target_pose.pose.orientation.w = 0.686
+        rospy.loginfo("Ready to send goal")
+        client.send_goal(goal)
+        rospy.loginfo("Finished sending nav goal")
+        #client.wait_for_result()
+
+    def setOffboardMode(self):
+        rospy.loginfo("Entered the offboard mode function")
+        self.odomInitTrajMsg()
+        rospy.wait_for_service('/mavros/set_mode')
+        try:
+            flightModeService = rospy.ServiceProxy('/mavros/set_mode', mavros_msgs.srv.SetMode)
+            response = flightModeService(custom_mode='OFFBOARD')
+            return response.mode_sent
+        except rospy.ServiceException as e:
+            print
+            "service set_mode call failed: %s. Offboard Mode could not be set." % e
+            return False
+        
+        
         
 
 if __name__ == '__main__':
     rospy.loginfo("Preparing to run the message converter")
     obj = MessageConverter()
+    x = 30
+    obj.setTakeoff()
+    while x >= 0: 
+      rospy.loginfo("%d seconds to setup rviz" % x)
+      rospy.sleep(1)
+      x = x - 1
+    obj.setOffboardMode()
     obj.flyTraj()
-    obj.executeMission()
+    obj.setLoiterMode()
+    obj.setTakeoff()
+    obj.sendNavGoal()
+    obj.setOffboardMode()
+    # x = 10
+    # while x >= 0:
+    #    rospy.sleep(1)
+    #    rospy.loginfo("Please set to offboard mode and preapre fuel in %d seconds" % x)
+    #    x = x - 1
+    obj.executeMission() #this is causing an error because traj topics are not global
     rospy.loginfo("Program end")
     
     
